@@ -1,0 +1,235 @@
+======================================================================
+LoRa CAMPUS MONITOR - FIELD NODE 2 CONNECTIONS
+ESP32 DevKit V1 + SX1278/Ra-02 + BME280 + BH1750 + MQ-135 + Sound sensor
+NODE_ID = 2
+(Identical circuit to Node 1 - separate ESP32, sensors, LoRa module,
+ antenna, 5 V supply and enclosure. Only the firmware NODE_ID differs.)
+======================================================================
+
+Firmware that uses these pins:
+  esp32-node/include/board_config.h
+Flash this node with:
+  cd esp32-node
+  pio run -e node2 -t upload
+  pio device monitor -b 115200
+
+----------------------------------------------------------------------
+SAFETY FIRST
+----------------------------------------------------------------------
+1. Disconnect ALL power (adapter and USB) before changing wiring.
+2. Ra-02 VCC is 3.3 V ONLY. Never connect it to 5 V / VIN.
+3. No ESP32 GPIO/ADC pin may ever see more than 3.3 V.
+   MQ-135 output MUST go through the voltage divider.
+4. Connect the 433 MHz antenna BEFORE powering the Ra-02.
+5. All GND points inside this node are joined to one common GND rail.
+6. This node is NOT wired to Node 1 or the Pi. The only link is radio.
+7. Check the labels on YOUR breakout boards. Some modules order the
+   pins differently. Measure with a multimeter before power-on.
+
+----------------------------------------------------------------------
+PARTS (this node)
+----------------------------------------------------------------------
+1 x ESP32 DevKit V1 (30-pin)
+1 x SX1278 / Ra-02 on adapter PCB + 433 MHz antenna + IPEX cable
+1 x BME280 module (I2C)
+1 x BH1750 module (I2C)
+1 x MQ-135 module (5 V)
+1 x Analog sound sensor module (3.3 V type preferred)
+1 x 5 V regulated adapter (1 A or more) + cable
+Resistors: 1 x 10 kOhm, 1 x 20 kOhm, 1 x 1 kOhm,
+           2 x 100 kOhm (optional supply monitor)
+Capacitors: 2 x 100 nF ceramic, 1 x 10 uF
+Perfboard/PCB, headers, wires, ventilated enclosure
+
+----------------------------------------------------------------------
+WIRE COLOURS
+----------------------------------------------------------------------
+Red    = 5 V          Orange = 3.3 V        Black  = GND
+Blue   = I2C SDA      Cyan   = I2C SCL
+Yellow = SPI SCK      Green  = SPI MISO     Purple = SPI MOSI
+White  = SPI NSS/CS   Brown  = RESET        Gray   = DIO0
+Magenta = Analog signal
+
+----------------------------------------------------------------------
+1. POWER
+----------------------------------------------------------------------
+ 5 V adapter (+)       -> 5 V RAIL on perfboard          (Red)
+ 5 V adapter (-)       -> GND RAIL on perfboard          (Black)
+ 5 V RAIL              -> ESP32 VIN                      (Red)
+ GND RAIL              -> ESP32 GND                      (Black)
+ ESP32 3V3             -> 3.3 V RAIL on perfboard        (Orange)
+
+ 3.3 V RAIL feeds : Ra-02, BME280, BH1750, sound sensor
+ 5 V RAIL feeds   : ESP32 VIN, MQ-135 heater, supply-monitor divider
+
+ Notes:
+ - The MQ-135 heater draws about 150 mA, so use an adapter of 1 A or more.
+ - When flashing over USB, unplug the 5 V adapter first unless you
+   have confirmed your board has a protection diode between USB and VIN.
+
+----------------------------------------------------------------------
+2. ESP32  ->  SX1278 / Ra-02 (SPI)
+----------------------------------------------------------------------
+ ESP32 pin    Wire     Ra-02 pin
+ ---------    ------   ---------
+ 3V3          Orange   VCC (3.3V)
+ GND          Black    GND
+ GPIO18       Yellow   SCK
+ GPIO19       Green    MISO
+ GPIO23       Purple   MOSI
+ GPIO5        White    NSS (CS)
+ GPIO14       Brown    RESET (RST)
+ GPIO26       Gray     DIO0
+
+ Ra-02 DIO1 ... DIO5   -> leave unconnected
+ Ra-02 VCC -> 100 nF ceramic -> GND   (right at the module)
+ Ra-02 VCC -> 10 uF          -> GND   (+ to VCC)
+ Ra-02 IPEX socket -> IPEX cable -> 433 MHz antenna (vertical)
+
+----------------------------------------------------------------------
+3. ESP32  ->  BME280 (I2C, address 0x76)
+----------------------------------------------------------------------
+ ESP32 pin    Wire     BME280 pin
+ ---------    ------   ----------
+ 3V3          Orange   VCC / VIN
+ GND          Black    GND
+ GPIO21       Blue     SDA
+ GPIO22       Cyan     SCL
+
+ If the module has these pins:
+   CSB / CS  -> 3.3 V   (selects I2C mode)
+   SDO       -> GND     (address 0x76, used by the firmware)
+                (SDO -> 3.3 V gives 0x77: then change BME280_I2C_ADDR
+                 in board_config.h)
+
+ Note: a module labelled BME280 that has no humidity reading is
+ probably a BMP280 and will be reported as "BME280 FAILED".
+
+----------------------------------------------------------------------
+4. ESP32  ->  BH1750 (I2C, same bus, address 0x23)
+----------------------------------------------------------------------
+ ESP32 pin    Wire     BH1750 pin
+ ---------    ------   ----------
+ 3V3          Orange   VCC
+ GND          Black    GND
+ GPIO21       Blue     SDA   (shared with BME280)
+ GPIO22       Cyan     SCL   (shared with BME280)
+ GND          Black    ADDR  (address 0x23)
+
+ BME280 (0x76) and BH1750 (0x23) share SDA/SCL because their
+ addresses are different. Most breakout boards already have I2C
+ pull-up resistors. Do not add more unless the bus fails.
+
+----------------------------------------------------------------------
+5. MQ-135  ->  ESP32 GPIO34 (through the voltage divider)
+----------------------------------------------------------------------
+ 5 V RAIL     -> MQ-135 VCC                     (Red)
+ GND RAIL     -> MQ-135 GND                     (Black)
+ MQ-135 AO    -> R1 10 kOhm -> ADC JUNCTION     (Magenta)
+ ADC JUNCTION -> R2 20 kOhm -> GND
+ ADC JUNCTION -> 1 kOhm series resistor -> ESP32 GPIO34
+ ADC JUNCTION -> 100 nF ceramic -> GND          (noise filter)
+ MQ-135 DO    -> leave unconnected
+
+ Divider diagram:
+
+   MQ-135 AO ----[ R1 10k ]----+----[ 1k ]----> ESP32 GPIO34
+                               |
+                               +----[ R2 20k ]----+
+                               |                  |
+                               +----| 100nF |-----+
+                                                  |
+                                                 GND
+
+ Vjunction = AO x 20k / (10k + 20k) = AO x 0.667
+ AO = 5.0 V  ->  junction is about 3.33 V   (absolute maximum)
+ Before connecting GPIO34, measure the junction voltage with the
+ sensor powered and warmed up. It must be 3.3 V or less.
+ The ESP32 ADC saturates at about 3.1 V, so very high gas levels
+ read as maximum. The firmware then sets the MQ135_SATURATED flag.
+
+----------------------------------------------------------------------
+6. SOUND SENSOR  ->  ESP32 GPIO35
+----------------------------------------------------------------------
+ Preferred (3.3 V-compatible module):
+   ESP32 3V3  -> sound VCC        (Orange)
+   ESP32 GND  -> sound GND        (Black)
+   sound AO   -> ESP32 GPIO35     (Magenta)
+   sound DO   -> leave unconnected
+
+ If the module needs 5 V, or its AO can exceed 3.3 V:
+   5 V RAIL -> sound VCC
+   sound AO -> 10 kOhm -> JUNCTION -> 20 kOhm -> GND
+   JUNCTION -> ESP32 GPIO35
+ Measure AO: it must stay at 3.3 V or less.
+
+----------------------------------------------------------------------
+7. SUPPLY MONITOR (optional) -> ESP32 GPIO32
+----------------------------------------------------------------------
+ 5 V RAIL       -> 100 kOhm -> SENSE JUNCTION
+ SENSE JUNCTION -> 100 kOhm -> GND
+ SENSE JUNCTION -> ESP32 GPIO32
+ At 5.0 V the junction reads about 2.5 V. The firmware multiplies by 2.
+ Not fitted? Set SUPPLY_MONITOR_ENABLED = false in board_config.h.
+
+----------------------------------------------------------------------
+8. ESP32 GPIO SUMMARY - NODE 2
+----------------------------------------------------------------------
+ GPIO5   LoRa NSS/CS             GPIO21  I2C SDA (BME280 + BH1750)
+ GPIO14  LoRa RESET              GPIO22  I2C SCL (BME280 + BH1750)
+ GPIO18  LoRa SCK                GPIO34  MQ-135 (via divider), input only
+ GPIO19  LoRa MISO               GPIO35  Sound sensor, input only
+ GPIO23  LoRa MOSI               GPIO32  Supply monitor (optional)
+ GPIO26  LoRa DIO0
+ 3V3     3.3 V rail              VIN     5 V rail
+ GND     common GND rail
+
+ Analog inputs are on ADC1 (GPIO32/34/35), so they keep working
+ while the radio is active.
+
+----------------------------------------------------------------------
+9. ESP32 DevKit V1 (30-pin) - TOP VIEW, USB AT THE BOTTOM
+   (check against the labels printed on your board)
+----------------------------------------------------------------------
+                   +-----------------+
+             EN    | o             o | GPIO23  -> LoRa MOSI
+             VP/36 | o             o | GPIO22  -> I2C SCL
+             VN/39 | o             o | TX0
+ MQ-135  <-  GPIO34| o             o | RX0
+ Sound   <-  GPIO35| o             o | GPIO21  -> I2C SDA
+ Supply  <-  GPIO32| o             o | GPIO19  -> LoRa MISO
+             GPIO33| o             o | GPIO18  -> LoRa SCK
+             GPIO25| o             o | GPIO5   -> LoRa NSS
+ LoRa DIO0<- GPIO26| o             o | TX2/17
+             GPIO27| o             o | RX2/16
+ LoRa RST <- GPIO14| o             o | GPIO4
+             GPIO12| o             o | GPIO2
+             GPIO13| o             o | GPIO15
+ GND rail <- GND   | o             o | GND    -> GND rail
+ 5 V rail <- VIN   | o             o | 3V3    -> 3.3 V rail
+                   +------[USB]------+
+
+----------------------------------------------------------------------
+10. RADIO SETTINGS (must match Node 1 and the Raspberry Pi)
+----------------------------------------------------------------------
+ 433 MHz | BW 125 kHz | SF7 | CR 4/5 | Preamble 8 | Sync 0x12 | CRC ON
+ TX power 10 dBm | One packet every 60 s, slot +40 s (+0-2 s jitter)
+
+----------------------------------------------------------------------
+11. POWER-ON CHECKLIST - NODE 2
+----------------------------------------------------------------------
+[ ] All power disconnected while wiring
+[ ] Ra-02 VCC on ESP32 3V3 (NOT VIN / 5 V)
+[ ] Antenna connected to Ra-02
+[ ] 100 nF + 10 uF fitted at Ra-02
+[ ] No short between 5 V rail and GND, or between 3.3 V rail and GND
+[ ] 5 V rail measures 4.75 - 5.25 V
+[ ] 3.3 V rail measures 3.2 - 3.4 V
+[ ] MQ-135 divider junction is 3.3 V or less (measure BEFORE linking GPIO34)
+[ ] Sound sensor AO is 3.3 V or less
+[ ] SPI wires checked at both ends (18, 19, 23, 5, 14, 26)
+[ ] I2C wires checked at both ends (21, 22)
+[ ] Flashed with env:node2 -> serial banner shows "Node ID  : 2"
+[ ] Serial shows: [init] BME280 OK, [init] BH1750 OK, [init] LoRa OK
+
+END OF FILE

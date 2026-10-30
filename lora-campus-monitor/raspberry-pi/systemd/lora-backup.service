@@ -1,0 +1,13 @@
+[Unit]
+Description=LoRa campus monitor - SQLite backup
+
+[Service]
+Type=oneshot
+User=loramon
+Group=loramon
+WorkingDirectory=/opt/lora-campus-monitor/raspberry-pi
+ExecStart=/opt/lora-campus-monitor/raspberry-pi/.venv/bin/python scripts/backup_db.py
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/lora-campus-monitor/raspberry-pi/database /opt/lora-campus-monitor/raspberry-pi/logs

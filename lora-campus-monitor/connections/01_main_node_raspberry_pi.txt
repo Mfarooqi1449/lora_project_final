@@ -1,0 +1,127 @@
+======================================================================
+LoRa CAMPUS MONITOR - MAIN NODE CONNECTIONS
+Raspberry Pi 3 Model B+  +  SX1278 / Ai-Thinker Ra-02 LoRa module
+======================================================================
+
+Software that uses these pins:
+  raspberry-pi/config/config.toml   [radio] section
+  raspberry-pi/app/sx1278.py        SX1278 driver
+
+----------------------------------------------------------------------
+SAFETY FIRST
+----------------------------------------------------------------------
+1. Shut down the Pi and remove power before wiring:  sudo poweroff
+2. Ra-02 VCC is 3.3 V ONLY. Use Pi physical pin 1 (or 17).
+   NEVER use pin 2 or pin 4 (those are 5 V and will destroy the module).
+3. Connect the 433 MHz antenna BEFORE powering the Ra-02.
+4. Ra-02 is an SMD module: mount it on an adapter PCB / breakout.
+5. Check every wire with a multimeter before first power-on.
+
+----------------------------------------------------------------------
+PARTS
+----------------------------------------------------------------------
+1 x Raspberry Pi 3 Model B+
+1 x 32 GB Class-10 microSD card (Raspberry Pi OS Bookworm)
+1 x 5 V / 2.5 A micro-USB power adapter
+1 x Ventilated case + heatsinks
+1 x SX1278 / Ra-02 module on adapter PCB
+1 x 433 MHz antenna + U.FL/IPEX cable
+1 x 100 nF ceramic capacitor   (decoupling)
+1 x 10 uF capacitor            (decoupling, observe polarity if electrolytic)
+8 x Female-female jumper wires (or a soldered HAT/perfboard)
+
+----------------------------------------------------------------------
+WIRE COLOURS
+----------------------------------------------------------------------
+Orange = 3.3 V     Black = GND      Yellow = SCK     Green = MISO
+Purple = MOSI      White = NSS/CS   Brown  = RESET   Gray  = DIO0
+
+----------------------------------------------------------------------
+1. POWER AND STORAGE
+----------------------------------------------------------------------
+microSD card               -> Pi microSD slot (underside)
+5 V / 2.5 A adapter        -> Pi micro-USB power connector
+(Do not power the Pi from the GPIO header.)
+
+----------------------------------------------------------------------
+2. RASPBERRY PI 3B+  ->  SX1278 / Ra-02
+----------------------------------------------------------------------
+ Pi physical pin   Pi function (BCM)     Wire     Ra-02 pin
+ ---------------   -------------------   ------   ---------
+ Pin 1             3.3 V                 Orange   VCC (3.3V)
+ Pin 6             GND                   Black    GND
+ Pin 23            GPIO11 / SPI0 SCLK    Yellow   SCK
+ Pin 21            GPIO9  / SPI0 MISO    Green    MISO
+ Pin 19            GPIO10 / SPI0 MOSI    Purple   MOSI
+ Pin 24            GPIO8  / SPI0 CE0     White    NSS (CS)
+ Pin 22            GPIO25                Brown    RESET (RST)
+ Pin 18            GPIO24                Gray     DIO0
+
+ Ra-02 DIO1 ... DIO5   -> leave unconnected
+ Ra-02 extra GND pins  -> may be tied to the same GND (recommended)
+
+----------------------------------------------------------------------
+3. DECOUPLING CAPACITORS (as close to Ra-02 VCC/GND pins as possible)
+----------------------------------------------------------------------
+ Ra-02 VCC  -> 100 nF ceramic -> Ra-02 GND
+ Ra-02 VCC  -> 10 uF          -> Ra-02 GND   (+ to VCC, - to GND)
+
+----------------------------------------------------------------------
+4. ANTENNA
+----------------------------------------------------------------------
+ Ra-02 U.FL/IPEX socket -> IPEX cable -> 433 MHz antenna
+ Mount the antenna vertically, away from metal and the Pi board.
+
+----------------------------------------------------------------------
+5. 40-PIN HEADER MAP (only the pins used are marked)
+----------------------------------------------------------------------
+                 +-----+-----+
+   Ra-02 VCC  <- |  1  |  2  |   5 V  (DO NOT USE)
+                 |  3  |  4  |   5 V  (DO NOT USE)
+                 |  5  |  6  | -> Ra-02 GND
+                 |  7  |  8  |
+                 |  9  | 10  |
+                 | 11  | 12  |
+                 | 13  | 14  |
+                 | 15  | 16  |
+                 | 17  | 18  | -> Ra-02 DIO0   (GPIO24)
+   Ra-02 MOSI <- | 19  | 20  |
+   Ra-02 MISO <- | 21  | 22  | -> Ra-02 RESET  (GPIO25)
+   Ra-02 SCK  <- | 23  | 24  | -> Ra-02 NSS    (GPIO8 / CE0)
+                 | 25  | 26  |
+                 +-----+-----+  (pins 27-40 not used)
+   Pin 1 has the square solder pad and is at the end of the header
+   nearest the microSD-card slot (away from the USB/Ethernet ports).
+
+----------------------------------------------------------------------
+6. NETWORK
+----------------------------------------------------------------------
+ Preferred:   Pi Ethernet -> router/switch -> laptop browser
+ Alternative: Pi Wi-Fi   -> campus/local Wi-Fi router -> laptop/mobile
+ Dashboard:   http://<raspberry-pi-ip>:5000
+ (Find the IP with:  hostname -I)
+
+----------------------------------------------------------------------
+7. RADIO SETTINGS (must match BOTH ESP32 nodes)
+----------------------------------------------------------------------
+ Frequency 433 MHz | BW 125 kHz | SF7 | CR 4/5 | Preamble 8
+ Sync word 0x12 | Explicit header | CRC ON
+
+----------------------------------------------------------------------
+8. POWER-ON CHECKLIST
+----------------------------------------------------------------------
+[ ] Pi powered off while wiring
+[ ] Ra-02 VCC on physical pin 1 (3.3 V), NOT pin 2/4
+[ ] No short between 3.3 V and GND (multimeter continuity test)
+[ ] Antenna connected to Ra-02
+[ ] 100 nF and 10 uF capacitors fitted at Ra-02
+[ ] SCK/MISO/MOSI/NSS/RESET/DIO0 checked at both ends
+[ ] SPI enabled:  sudo raspi-config nonint do_spi 0   (then reboot)
+[ ] /dev/spidev0.0 exists:  ls /dev/spidev*
+[ ] Radio test passes:
+      sudo systemctl stop lora-receiver
+      python scripts/radio_test.py
+    Expected: "SX1278 version 0x12 | 433.000 MHz BW 125 kHz SF7 ..."
+    If "version 0x00" or "0xFF": check VCC, GND, MISO, NSS and SPI enable.
+
+END OF FILE

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ node.node_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ node.node_name }} <span id="state-pill"></span></h1>
+    <div class="muted">Node ID {{ node.node_id }} · {{ node.location }}</div>
+  </div>
+  <a class="button" href="{{ url_for('export_csv', node_id=node.node_id) }}">Export CSV (all data)</a>
+</div>
+
+<section class="grid metric-grid" id="current"></section>
+
+<section class="grid status-grid">
+  <div class="card"><div class="label">Last update</div><div class="value small-value" id="last-seen">—</div><div class="sub" id="last-age"></div></div>
+  <div class="card"><div class="label">Signal</div><div class="value small-value" id="signal">—</div><div class="sub">RSSI / SNR of last packet</div></div>
+  <div class="card"><div class="label">Packets</div><div class="value small-value" id="packets">—</div><div class="sub" id="packets-detail"></div></div>
+  <div class="card"><div class="label">Sensor status</div><div class="value small-value" id="flags">—</div><div class="sub" id="uptime"></div></div>
+</section>
+
+<div class="page-head">
+  <h2>History</h2>
+  <div class="range-buttons" id="ranges">
+    <button data-hours="1">1 h</button>
+    <button data-hours="6">6 h</button>
+    <button data-hours="24" class="selected">24 h</button>
+    <button data-hours="168">7 d</button>
+    <button data-hours="720">30 d</button>
+  </div>
+</div>
+<section class="grid chart-grid">
+  {% for key in ['temperature_c', 'humidity_percent', 'pressure_hpa', 'light_lux', 'air_quality_raw', 'sound_raw', 'rssi_dbm', 'snr_db', 'supply_voltage'] %}
+  <div class="card chart-card">
+    <div class="label">{{ metric_labels[key][0] }} ({{ metric_labels[key][1] }})</div>
+    <canvas data-metric="{{ key }}" data-unit="{{ metric_labels[key][1] }}" height="180"></canvas>
+  </div>
+  {% endfor %}
+</section>
+
+<h2>Active alerts</h2>
+<div id="node-alerts" class="muted">—</div>
+
+<h2>Recent packets</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Received</th><th>Seq</th><th>T °C</th><th>RH %</th><th>hPa</th><th>Lux</th><th>MQ-135</th><th>Sound</th><th>Peak</th><th>V</th><th>RSSI</th><th>SNR</th><th>Lost</th><th>Flags</th></tr></thead>
+  <tbody id="recent"></tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const NODE_ID = {{ node.node_id }};
+let hours = 24;
+
+async function refreshNode() {
+  const data = await fetchJSON(`/api/nodes/${NODE_ID}`);
+  const n = data.node, r = n.latest || {};
+  document.getElementById('state-pill').innerHTML = !n.enabled ? '<span class="pill muted-pill">disabled</span>'
+    : n.online ? '<span class="pill ok">online</span>' : '<span class="pill bad-pill">offline</span>';
+
+  document.getElementById('current').innerHTML = [
+    ['Temperature', r.temperature_c, '°C', 2], ['Humidity', r.humidity_percent, '%', 1],
+    ['Pressure', r.pressure_hpa, 'hPa', 1], ['Light', r.light_lux, 'lx', 1],
+    ['MQ-135 raw', r.air_quality_raw, '', 0], ['Sound avg / peak', r.sound_raw, r.sound_peak != null ? '/ ' + r.sound_peak : '', 0],
+    ['Supply', r.supply_voltage, 'V', 2],
+  ].map(([l, v, u, d]) => `<div class="card"><div class="label">${l}</div><div class="value">${fmt(v, d)} <span class="unit">${u}</span></div></div>`).join('');
+
+  setText('last-seen', n.last_seen ? fmtTime(n.last_seen) : 'never');
+  setText('last-age', n.last_seen ? fmtAge(n.last_seen_age_s) + ' ago' : '');
+  setText('signal', `${fmt(n.last_rssi_dbm, 1)} dBm / ${fmt(n.last_snr_db, 1)} dB`);
+  setText('packets', `${n.packets_received} received`);
+  setText('packets-detail', `${n.packets_lost} lost (${n.packet_loss_percent == null ? '—' : n.packet_loss_percent + ' %'}) · ${n.duplicates} duplicates · ${n.reboots} node restarts`);
+  setText('flags', (r.status_text && r.status_text.length) ? r.status_text.join(', ') : (n.latest ? 'All OK' : '—'));
+  setText('uptime', r.uptime_seconds != null ? `node uptime ${fmtAge(r.uptime_seconds)}` : '');
+
+  document.getElementById('node-alerts').innerHTML = data.alerts.length
+    ? '<ul>' + data.alerts.map(a => `<li><span class="sev ${a.severity}">${a.severity}</span> ${esc(a.alert_type)} — ${esc(a.message)} (since ${fmtTime(a.created_at)})</li>`).join('') + '</ul>'
+    : 'No active alerts.';
+
+  document.getElementById('recent').innerHTML = data.recent.map(x => `<tr>
+    <td>${fmtTime(x.received_at)}</td><td>${x.sequence_number}</td><td>${fmt(x.temperature_c, 2)}</td>
+    <td>${fmt(x.humidity_percent, 1)}</td><td>${fmt(x.pressure_hpa, 1)}</td><td>${fmt(x.light_lux, 1)}</td>
+    <td>${fmt(x.air_quality_raw, 0)}</td><td>${fmt(x.sound_raw, 0)}</td><td>${fmt(x.sound_peak, 0)}</td>
+    <td>${fmt(x.supply_voltage, 2)}</td><td>${fmt(x.rssi_dbm, 1)}</td><td>${fmt(x.snr_db, 1)}</td>
+    <td>${x.lost_before || ''}</td><td>${x.status_flags ? '0x' + x.status_flags.toString(16).toUpperCase() : ''}</td></tr>`).join('');
+}
+
+async function refreshCharts() {
+  const data = await fetchJSON(`/api/nodes/${NODE_ID}/history?hours=${hours}&points=400`);
+  document.querySelectorAll('canvas[data-metric]').forEach(c => drawLineChart(c, data.points, c.dataset.metric, c.dataset.unit, hours));
+}
+
+document.getElementById('ranges').addEventListener('click', e => {
+  if (!e.target.dataset.hours) return;
+  hours = Number(e.target.dataset.hours);
+  document.querySelectorAll('#ranges button').forEach(b => b.classList.toggle('selected', b === e.target));
+  refreshCharts();
+});
+window.addEventListener('resize', () => refreshCharts());
+
+refreshNode(); refreshCharts();
+setInterval(refreshNode, refreshMs());
+setInterval(refreshCharts, Math.max(refreshMs(), 60000));
+</script>
+{% endblock %}

@@ -1,0 +1,474 @@
+======================================================================
+LoRa CAMPUS MONITOR - HOW TO RUN (ANY MACHINE, LOCALLY)
+Prerequisites, installation, running, connecting and troubleshooting
+======================================================================
+
+This guide covers four ways to use the project:
+
+  PART A  Run the demo (dashboard + simulated nodes) on ANY computer
+          Windows / Linux / macOS. No hardware needed.
+  PART B  Open the 3D wiring viewer on any computer
+  PART C  Build and flash the ESP32 firmware (Node 1 and Node 2)
+  PART D  Install the real system on the Raspberry Pi 3B+ (hardware)
+  PART E  Connect to the dashboard from a laptop or phone
+  PART F  Run the automatic tests
+  PART G  Troubleshooting
+  PART H  Quick command summary
+
+Project folder used below:  lora-campus-monitor/
+(Copy the whole folder to the target machine: USB stick, zip or git.)
+
+
+======================================================================
+0. PREREQUISITES
+======================================================================
+
+0.1 For PART A / B / F (any computer - demo, 3D viewer, tests)
+----------------------------------------------------------------
+ [ ] Python 3.11 or newer          (REQUIRED - the code uses tomllib)
+       Check:  python3 --version      (Linux/macOS)
+               py --version           (Windows)
+       Download: https://www.python.org/downloads/
+       Windows: tick "Add python.exe to PATH" during installation.
+ [ ] pip and venv                  (included with python.org installers)
+       Debian/Ubuntu only:  sudo apt install python3-venv python3-pip
+ [ ] A modern web browser          (Chrome, Edge, Firefox; WebGL for 3D)
+ [ ] Free TCP ports 5000 (dashboard) and 8090 (3D viewer)
+ [ ] Internet ONCE to download the Python packages (flask, waitress, pytest)
+ Optional:
+ [ ] g++ and make: only for the C++ firmware host tests (PART F).
+       Linux: sudo apt install build-essential
+       macOS: xcode-select --install
+       Windows: not needed; that one test is skipped automatically.
+
+0.2 For PART C (building and flashing the ESP32 firmware)
+---------------------------------------------------------
+ [ ] Python 3.8+ and PlatformIO Core:  pip install platformio
+     OR VS Code + the "PlatformIO IDE" extension
+ [ ] Internet for the first build (it downloads the ESP32 toolchain,
+     about 300 MB, plus the libraries LoRa, Adafruit BME280 and BH1750)
+ [ ] USB data cable (micro-USB) for the ESP32 DevKit V1
+ [ ] USB-to-serial driver, if the board is not detected:
+       CP210x (Silicon Labs) or CH340 (WCH), depending on your board
+ [ ] Linux only: serial port permission:
+       sudo usermod -aG dialout $USER     (then log out and back in)
+
+0.3 For PART D (real system on the Raspberry Pi)
+------------------------------------------------
+ [ ] Raspberry Pi 3 Model B+ with the Ra-02 wired as in
+     connections/01_main_node_raspberry_pi.txt
+ [ ] 32 GB Class-10 microSD card
+ [ ] Raspberry Pi OS (Bookworm or newer; Python 3.11+), written with
+     Raspberry Pi Imager: https://www.raspberrypi.com/software/
+ [ ] 5 V / 2.5 A micro-USB power supply
+ [ ] Network: Ethernet cable or Wi-Fi credentials
+ [ ] Internet on the Pi during installation (apt + pip)
+ [ ] 433 MHz antenna on EVERY LoRa module before power-on
+
+0.4 Hardware for the field nodes
+--------------------------------
+ See connections/02_field_node_1_esp32.txt and 03_field_node_2_esp32.txt
+
+
+======================================================================
+PART A - RUN THE DEMO ON ANY COMPUTER (NO HARDWARE)
+======================================================================
+
+The receiver runs in --simulate mode. It creates protocol-correct
+packets for Node 1 and Node 2, with some packet loss and CRC errors,
+and the full pipeline (validation -> SQLite -> alerts -> dashboard)
+runs exactly as it does on the Pi.
+
+A1. Open a terminal in the raspberry-pi folder
+----------------------------------------------
+ Linux / macOS:
+   cd lora-campus-monitor/raspberry-pi
+ Windows (PowerShell or Command Prompt):
+   cd lora-campus-monitor\raspberry-pi
+
+A2. Create a virtual environment and install packages (one time only)
+---------------------------------------------------------------------
+ Linux / macOS:
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements-dev.txt
+
+ Windows (PowerShell):
+   py -m venv .venv
+   .venv\Scripts\Activate.ps1
+   pip install -r requirements-dev.txt
+   (If PowerShell blocks the script, run this once:
+      Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+    or use Command Prompt:  .venv\Scripts\activate.bat)
+
+ The prompt now starts with (.venv). Activate again in every new
+ terminal before running the commands below.
+
+A3. Terminal 1 - start the simulated receiver
+---------------------------------------------
+   python -m app.receiver --simulate --sim-period 5
+
+ --sim-period 5 means each simulated node sends every 5 s. The real
+ nodes send every 60 s, so 5 s makes the demo faster. Expected log lines:
+   INFO app.processor: Node 1 seq 0 stored: T=29.5 RH=53.1 ...
+ Leave this terminal running.
+
+A4. Terminal 2 - start the dashboard
+------------------------------------
+ Activate the venv again (A2), then:
+   python -m app.serve          (production server, waitress)
+ or
+   python -m app.web            (Flask development server)
+
+ Expected:  Dashboard on http://0.0.0.0:5000 ...
+
+A5. Open the dashboard
+----------------------
+ In a browser on the same computer:   http://localhost:5000
+ Pages: Overview, Node 1, Node 2, Alerts, Maintenance.
+ From another device on the same network, see PART E.
+
+A6. Stop the demo
+-----------------
+ Press Ctrl+C in both terminals. The receiver logs "clean shutdown".
+
+A7. Reset the demo data (optional)
+----------------------------------
+ The demo stores its data in  raspberry-pi/database/monitor.db
+ To start fresh, stop both programs and delete:
+   database/monitor.db  database/monitor.db-wal  database/monitor.db-shm
+ (install.sh never copies this folder to the Pi, so demo data cannot
+  end up on the real system.)
+
+A8. Keep demo data separate (optional)
+--------------------------------------
+ Copy config/config.toml to e.g. demo.toml, change [database] path,
+ then start both programs with the environment variable set:
+   Linux/macOS:  export LORA_MONITOR_CONFIG=$PWD/demo.toml
+   Windows PS :  $env:LORA_MONITOR_CONFIG="$PWD\demo.toml"
+   Windows CMD:  set LORA_MONITOR_CONFIG=%CD%\demo.toml
+
+
+======================================================================
+PART B - 3D WIRING VIEWER (ANY COMPUTER)
+======================================================================
+
+ B1.  cd lora-campus-monitor/connections/3d
+ B2.  python3 -m http.server 8090        (Windows: py -m http.server 8090)
+ B3.  Open  http://localhost:8090/connections_3d.html
+      Add #system, #main, #node1 or #node2 to open a view directly.
+ B4.  Ctrl+C to stop.
+
+ - Do not double-click the HTML file. Browsers block some local file
+   access, so always serve it as shown above.
+ - No internet is needed: three.js is in connections/3d/vendor/.
+ - Ready-made PNG images are in connections/3d/images/.
+
+
+======================================================================
+PART C - BUILD AND FLASH THE ESP32 FIRMWARE
+======================================================================
+
+C1. Install PlatformIO (one time)
+---------------------------------
+   pip install platformio            (inside any venv, or user-wide)
+   pio --version
+ OR install VS Code -> Extensions -> "PlatformIO IDE".
+
+C2. Check the settings before the first build
+---------------------------------------------
+ esp32-node/include/board_config.h
+   - BME280_I2C_ADDR: 0x76 (SDO -> GND) or 0x77 (SDO -> 3.3 V)
+   - SUPPLY_MONITOR_ENABLED: false if the GPIO32 divider is not fitted
+   - Radio settings: must equal raspberry-pi/config/config.toml [radio]
+
+C3. Build both nodes (the first build downloads the toolchain)
+--------------------------------------------------------------
+   cd lora-campus-monitor/esp32-node
+   pio run
+ Expected:  node1 SUCCESS   node2 SUCCESS
+
+C4. Flash
+---------
+ Connect ONE board by USB, then:
+   pio run -e node1 -t upload        <- board labelled NODE 1
+ Disconnect it, connect the second board:
+   pio run -e node2 -t upload        <- board labelled NODE 2
+ If the port is not found automatically, add it:
+   --upload-port COM5                (Windows)
+   --upload-port /dev/ttyUSB0        (Linux)
+   --upload-port /dev/cu.SLAB_USBtoUART   (macOS)
+ If the upload hangs at "Connecting....", hold the BOOT button on the
+ ESP32 until writing starts.
+
+C5. Watch the serial diagnostics
+--------------------------------
+   pio device monitor -b 115200
+ Expected:
+   Node ID  : 1
+   [init] BME280   OK
+   [init] BH1750   OK
+   [init] LoRa     OK
+   [seq 0] T=27.41C RH=58.2% ... flags=0x0404
+   [tx  0] SENT, 33 bytes, 72 ms airtime | 4C0101...
+ Decode any packet hex on a PC:
+   python tools/decode_packet.py <hex>
+
+ Unplug the external 5 V adapter while the USB cable is connected,
+ unless your board has a protection diode (see the wiring file).
+
+
+======================================================================
+PART D - INSTALL THE REAL SYSTEM ON THE RASPBERRY PI 3B+
+======================================================================
+
+D1. Prepare the microSD card (on your PC)
+-----------------------------------------
+ 1. Open Raspberry Pi Imager.
+ 2. Device: Raspberry Pi 3. OS: Raspberry Pi OS (64-bit or 32-bit, Bookworm or newer).
+ 3. Click Edit Settings (the gear icon) and set:
+      hostname: loramonitor
+      username / password
+      Wi-Fi SSID / password and Wi-Fi country (IN)   (if not using Ethernet)
+      Services: enable SSH
+ 4. Write the card, insert it into the Pi and power on. The first boot takes 1-3 minutes.
+
+D2. Log in to the Pi
+--------------------
+ From your PC (same network):
+   ssh <username>@loramonitor.local
+ If ".local" does not resolve, find the Pi's IP address in your router
+ or with a monitor and keyboard (hostname -I), then:  ssh <username>@<ip>
+
+D3. Copy the project to the Pi
+------------------------------
+ Option 1 (git):    git clone <your-repository-url> lora-campus-monitor
+ Option 2 (scp, from your PC):
+   scp -r lora-campus-monitor <username>@loramonitor.local:~/
+ Option 3: USB stick, then copy it to ~/lora-campus-monitor
+
+D4. Run the installer (needs internet on the Pi)
+------------------------------------------------
+   cd ~/lora-campus-monitor
+   sudo ./raspberry-pi/scripts/install.sh
+ The installer:
+   - installs python3-venv, python3-spidev, python3-gpiozero, python3-lgpio, sqlite3, rsync
+   - enables SPI
+   - creates the service user "loramon" (groups spi and gpio)
+   - copies the app to /opt/lora-campus-monitor/raspberry-pi
+   - creates the virtual environment and installs flask and waitress
+   - creates the database
+   - enables lora-receiver, lora-dashboard and lora-backup.timer
+ Reboot once after the first install (SPI is activated at boot):
+   sudo reboot
+
+D5. Configure the node locations
+--------------------------------
+   sudo nano /opt/lora-campus-monitor/raspberry-pi/config/config.toml
+     [[nodes]] location = "..."   <- real places
+     [alerts.rules] thresholds    <- tune after field measurements
+   sudo systemctl restart lora-receiver lora-dashboard
+
+D6. Check that the radio works
+------------------------------
+   ls /dev/spidev*                 -> /dev/spidev0.0 must exist
+   sudo systemctl stop lora-receiver
+   sudo -u loramon /opt/lora-campus-monitor/raspberry-pi/.venv/bin/python \
+        /opt/lora-campus-monitor/raspberry-pi/scripts/radio_test.py
+ Expected:
+   SX1278 version 0x12 | 433.000 MHz BW 125 kHz SF7 CR 4/5 ...
+   [10:15:12] 33 B RSSI -71.5 dBm SNR 9.2 dB node 1 seq 4 ...
+ Ctrl+C, then:
+   sudo systemctl start lora-receiver
+
+D7. Check the services
+----------------------
+   systemctl status lora-receiver lora-dashboard
+   journalctl -u lora-receiver -f          (live packet log, Ctrl+C to exit)
+   systemctl list-timers lora-backup.timer
+
+D8. Updating later
+------------------
+ Copy the new project version to the Pi and run install.sh again.
+ config.toml, the database and the logs are kept.
+
+D9. Demo mode on the Pi without radio hardware (optional)
+---------------------------------------------------------
+   sudo systemctl stop lora-receiver
+   cd /opt/lora-campus-monitor/raspberry-pi
+   sudo -u loramon .venv/bin/python -m app.receiver --simulate --sim-period 5
+ (Ctrl+C, then start the service again. Simulated rows stay in the database.)
+
+
+======================================================================
+PART E - CONNECT TO THE DASHBOARD
+======================================================================
+
+E1. Find the machine's IP address
+---------------------------------
+ Raspberry Pi / Linux:   hostname -I
+ macOS:                  ipconfig getifaddr en0
+ Windows:                ipconfig      (look for "IPv4 Address")
+
+E2. Open in a browser on any device in the SAME network
+-------------------------------------------------------
+   http://<ip-address>:5000        e.g. http://192.168.1.50:5000
+   http://loramonitor.local:5000   (if mDNS works on your network)
+
+E3. Requirements for access from other devices
+----------------------------------------------
+ - [web] host = "0.0.0.0" in config.toml (the default) listens on all
+   network interfaces. "127.0.0.1" allows access from this machine only.
+ - Firewall must allow TCP 5000:
+     Windows: allow Python when the Windows Defender Firewall prompt appears
+     Ubuntu (ufw):  sudo ufw allow 5000/tcp
+     Raspberry Pi OS: no firewall by default
+ - Campus or guest Wi-Fi often isolates clients from each other. If it
+   does, use Ethernet or a private router or switch.
+ - Change the port with [web] port in config.toml, then restart.
+
+E4. Remote server or VS Code Remote
+-----------------------------------
+ If the dashboard runs on a remote machine (SSH / VS Code Remote):
+   - open http://<server-ip>:5000 directly, OR
+   - forward the port: VS Code "Ports" panel -> Forward a Port -> 5000,
+     then open http://localhost:5000, OR
+   - ssh -L 5000:localhost:5000 <user>@<server>   then http://localhost:5000
+
+E5. Security
+------------
+ The dashboard has NO login. Use it only on the local network and never
+ forward port 5000 to the internet.
+
+E6. JSON API (for scripts or other tools)
+-----------------------------------------
+   http://<ip>:5000/api/overview
+   http://<ip>:5000/api/nodes/1/history?hours=24
+   http://<ip>:5000/export.csv?node_id=1
+   http://<ip>:5000/healthz
+
+
+======================================================================
+PART F - RUN THE AUTOMATIC TESTS
+======================================================================
+
+ Python (50 tests, no hardware, about 2 s):
+   cd lora-campus-monitor/raspberry-pi
+   (activate the venv from A2)
+   python -m pytest
+ Expected:  50 passed     (49 passed, 1 skipped without g++)
+
+ C++ firmware host tests (needs g++ and make):
+   make -C lora-campus-monitor/esp32-node/test_host
+ Expected:  All firmware host tests passed.
+
+ Firmware compile check:
+   cd lora-campus-monitor/esp32-node && pio run
+
+
+======================================================================
+PART G - TROUBLESHOOTING
+======================================================================
+
+ Problem: "ModuleNotFoundError: No module named 'tomllib'"
+   -> Python is older than 3.11. Install Python 3.11+ (or use Pi OS Bookworm).
+
+ Problem: "ModuleNotFoundError: No module named 'flask'" / "app"
+   -> The venv is not active (A2), or you are not in the raspberry-pi/ folder.
+
+ Problem: "Address already in use" / port 5000 busy
+   -> Another program uses port 5000 (on macOS, often AirPlay Receiver).
+      Change [web] port in config.toml (e.g. 5050), or stop the other program.
+      Linux: sudo ss -ltnp | grep :5000
+
+ Problem: dashboard shows "Receiver: Stopped"
+   -> The receiver is not running (A3 / systemctl status lora-receiver),
+      or it uses a different config/database than the dashboard. Both
+      must use the same config file.
+
+ Problem: "SX1278 not detected (version register 0x00 / 0xFF)"
+   -> SPI is not enabled (sudo raspi-config nonint do_spi 0; reboot),
+      or the wiring is wrong (VCC 3.3 V, GND, MISO, NSS on pin 24), or the
+      module has no power. Check with connections/01_main_node_raspberry_pi.txt.
+
+ Problem: radio OK but no packets arrive
+   -> Radio settings differ between board_config.h and config.toml
+      (frequency, SF, BW, CR, sync word 0x12, CRC on), an antenna is
+      missing, or the node is not powered. Watch the ESP32 serial monitor
+      for "[tx n] SENT".
+
+ Problem: packets are rejected with "unknown_node"
+   -> The node ID is not listed in config.toml [[nodes]] (or is disabled).
+
+ Problem: ESP32 shows "[init] BME280 FAILED"
+   -> Wrong address (0x76/0x77), SDA/SCL swapped, the module is a BMP280,
+      or there is no 3.3 V. The node retries every 30 s.
+
+ Problem: PlatformIO "HTTPClientError" or "SSL: CERTIFICATE_VERIFY_FAILED"
+   -> A company network/proxy is intercepting HTTPS. Point Python at the
+      system certificate bundle, then retry:
+        Linux:   export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+                 export REQUESTS_CA_BUNDLE=$SSL_CERT_FILE
+      Or build on a home or mobile network.
+
+ Problem: pip install fails with SSL errors on a company network
+   -> pip install --cert /etc/ssl/certs/ca-certificates.crt -r requirements-dev.txt
+
+ Problem: 3D viewer shows a blank page
+   -> Open it through http.server (PART B), not by double-clicking.
+      Enable hardware acceleration / WebGL in the browser.
+
+ Problem: Windows PowerShell "running scripts is disabled"
+   -> Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+      (or use Command Prompt and .venv\Scripts\activate.bat)
+
+ Problem: ESP32 upload fails / "No serial port"
+   -> Install the CP210x or CH340 driver, use a DATA USB cable (not a
+      charge-only cable), hold BOOT while uploading, or set --upload-port.
+
+
+======================================================================
+PART H - QUICK COMMAND SUMMARY
+======================================================================
+
+ Demo (Linux/macOS):
+   cd lora-campus-monitor/raspberry-pi
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -r requirements-dev.txt
+   python -m app.receiver --simulate --sim-period 5      # terminal 1
+   python -m app.serve                                   # terminal 2
+   -> http://localhost:5000
+
+ Demo (Windows PowerShell):
+   cd lora-campus-monitor\raspberry-pi
+   py -m venv .venv ; .venv\Scripts\Activate.ps1
+   pip install -r requirements-dev.txt
+   python -m app.receiver --simulate --sim-period 5      # terminal 1
+   python -m app.serve                                   # terminal 2
+   -> http://localhost:5000
+
+ 3D viewer:
+   cd lora-campus-monitor/connections/3d && python3 -m http.server 8090
+   -> http://localhost:8090/connections_3d.html
+
+ Firmware:
+   cd lora-campus-monitor/esp32-node
+   pio run -e node1 -t upload ; pio run -e node2 -t upload
+   pio device monitor -b 115200
+
+ Raspberry Pi (real system):
+   sudo ./raspberry-pi/scripts/install.sh ; sudo reboot
+   systemctl status lora-receiver lora-dashboard
+   journalctl -u lora-receiver -f
+   -> http://<pi-ip>:5000
+
+ Backup / restore:
+   python scripts/backup_db.py
+   python scripts/backup_db.py --dest /media/usb
+   python scripts/backup_db.py --restore <file>   (stop both services first)
+
+ Tests:
+   python -m pytest                     (in raspberry-pi/)
+   make -C esp32-node/test_host
+
+END OF FILE

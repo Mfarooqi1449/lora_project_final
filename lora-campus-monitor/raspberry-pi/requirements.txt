@@ -1,0 +1,5 @@
+flask>=3.0,<4
+waitress>=3.0,<4
+# Raspberry Pi hardware libraries: install from apt (python3-spidev,
+# python3-gpiozero, python3-lgpio) and create the venv with
+# --system-site-packages, as done by scripts/install.sh.

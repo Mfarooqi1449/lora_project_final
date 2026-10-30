@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Maintenance{% endblock %}
+{% block content %}
+<h1>Maintenance</h1>
+
+<section class="grid two-col">
+  <div class="card">
+    <h3>CSV export</h3>
+    <form id="export-form" action="{{ url_for('export_csv') }}" method="get" class="form">
+      <label>Node
+        <select name="node_id">
+          <option value="all">All nodes</option>
+          {% for n in nodes %}<option value="{{ n.node_id }}">{{ n.node_name }} (ID {{ n.node_id }})</option>{% endfor %}
+        </select>
+      </label>
+      <label>From (local time) <input type="datetime-local" id="start-local"></label>
+      <label>To (local time) <input type="datetime-local" id="end-local"></label>
+      <input type="hidden" name="start" id="start">
+      <input type="hidden" name="end" id="end">
+      <button type="submit">Download CSV</button>
+      <p class="sub">Leave dates empty to export everything.</p>
+    </form>
+  </div>
+
+  <div class="card">
+    <h3>Database</h3>
+    <table class="kv">
+      <tr><th>File</th><td><code>{{ db_path }}</code></td></tr>
+      <tr><th>Size</th><td>{{ db_size_mb if db_size_mb is not none else '—' }} MB</td></tr>
+      <tr><th>Readings stored</th><td>{{ reading_count }}</td></tr>
+      <tr><th>Rejected packets</th><td>{{ rejected_count }}</td></tr>
+      <tr><th>Backup folder</th><td><code>{{ backup_dir }}</code></td></tr>
+      <tr><th>Last backups</th><td>
+        {% if backups %}
+          {% for b in backups %}<div><span class="ts" data-ts="{{ b.created_at }}">{{ b.created_at }}</span> — {{ b.message }}</div>{% endfor %}
+        {% else %}<span class="bad">No backup recorded yet</span>{% endif %}
+      </td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Main node</h3>
+    <table class="kv">
+      <tr><th>Receiver service</th><td class="{{ 'good' if receiver.running else 'bad' }}">{{ 'running' if receiver.running else 'stopped / no heartbeat' }}</td></tr>
+      <tr><th>LoRa radio</th><td class="{{ 'good' if receiver.radio_ok else 'bad' }}">{{ 'OK' if receiver.radio_ok else 'not ready' }}</td></tr>
+      <tr><th>Radio settings</th><td>{{ receiver.radio_settings or '—' }}</td></tr>
+      <tr><th>Receiver started</th><td>{% if receiver.started_at %}<span class="ts" data-ts="{{ receiver.started_at }}">{{ receiver.started_at }}</span>{% else %}—{% endif %}</td></tr>
+      <tr><th>Packets (this run)</th><td>{{ receiver.packets_received or 0 }} received · {{ receiver.packets_stored or 0 }} stored · {{ receiver.packets_rejected or 0 }} rejected</td></tr>
+      <tr><th>CPU temperature</th><td>{{ cpu_temp if cpu_temp is not none else '—' }} °C</td></tr>
+      <tr><th>Load (1 min)</th><td>{{ load if load is not none else '—' }}</td></tr>
+      <tr><th>System uptime</th><td>{% if uptime_s is not none %}{{ (uptime_s // 3600) }} h {{ (uptime_s % 3600) // 60 }} min{% else %}—{% endif %}</td></tr>
+      <tr><th>Disk free</th><td>{% if disk %}{{ disk.free_gb }} GB of {{ disk.total_gb }} GB ({{ disk.used_percent }} % used){% else %}—{% endif %}</td></tr>
+      <tr><th>Application</th><td>v{{ app_version }} (Python {{ python_version }}), receiver v{{ receiver.version or '?' }}</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>Nodes</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Location</th><th>Enabled</th><th>Received</th><th>Lost</th><th>Dup.</th><th>Restarts</th></tr></thead>
+      <tbody>
+      {% for n in nodes %}
+      <tr><td>{{ n.node_id }}</td><td>{{ n.node_name }}</td><td>{{ n.location }}</td><td>{{ 'yes' if n.enabled else 'no' }}</td>
+          <td>{{ n.packets_received }}</td><td>{{ n.packets_lost }}</td><td>{{ n.duplicates }}</td><td>{{ n.reboots }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="sub">Node names and locations are set in <code>config/config.toml</code>.</p>
+  </div>
+</section>
+
+<h2>System events</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Time</th><th>Event</th><th>Message</th></tr></thead>
+  <tbody>
+  {% for e in events %}
+  <tr><td><span class="ts" data-ts="{{ e.created_at }}">{{ e.created_at }}</span></td><td>{{ e.event_type }}</td><td>{{ e.message }}</td></tr>
+  {% else %}
+  <tr><td colspan="3" class="muted">No events.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Rejected packets (latest 20)</h2>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Time</th><th>Reason</th><th>Node</th><th>RSSI</th><th>SNR</th><th>Detail</th><th>Raw (hex)</th></tr></thead>
+  <tbody>
+  {% for r in rejected %}
+  <tr><td><span class="ts" data-ts="{{ r.received_at }}">{{ r.received_at }}</span></td><td>{{ r.reason }}</td><td>{{ r.node_id if r.node_id is not none else '—' }}</td>
+      <td>{{ r.rssi_dbm if r.rssi_dbm is not none else '—' }}</td><td>{{ r.snr_db if r.snr_db is not none else '—' }}</td>
+      <td>{{ r.detail }}</td><td><code class="raw">{{ r.raw_hex }}</code></td></tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">No rejected packets.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+formatTimestamps();
+document.getElementById('export-form').addEventListener('submit', () => {
+  for (const id of ['start', 'end']) {
+    const local = document.getElementById(id + '-local').value;
+    const hidden = document.getElementById(id);
+    hidden.value = local ? new Date(local).toISOString() : '';
+    hidden.disabled = !local;
+  }
+});
+</script>
+{% endblock %}

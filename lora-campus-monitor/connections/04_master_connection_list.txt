@@ -1,0 +1,211 @@
+======================================================================
+LoRa CAMPUS MONITOR - MASTER CONNECTION LIST (ALL REQUIRED CONNECTIONS)
+======================================================================
+
+One list of every connection needed to build the complete system:
+  1 x Main node (Raspberry Pi 3B+ + Ra-02)       -> section 1  (IDs M01..)
+  2 x Field node (ESP32 + Ra-02 + 4 sensors)     -> section 2  (IDs N-01..)
+      The field-node circuit is built TWICE: tick [N1] and [N2].
+
+Columns:  [check]  ID  FROM -> TO  WIRE COLOUR  NEED
+          second line: signal | software setting that uses the pin | note
+
+Need:  Required      = must be fitted
+       If pin exists = only if your breakout board has that pin
+       Recommended   = strongly advised (noise filter)
+       Optional      = only if the feature is used
+       Not connected = leave the pin open
+
+Same data for Excel / printing: master_connection_list.csv
+Full explanations + diagrams: 01_/02_/03_*.txt and 3d/ viewer.
+
+1. MAIN NODE - RASPBERRY PI 3B+  (tick when done)
+-------------------------------------------------
+
+  >> Power & storage
+  [ ]  M01  5 V / 2.5 A adapter              -> Pi micro-USB power port        -        Required
+          5 V supply | Do not power the Pi from the GPIO header
+  [ ]  M02  32 GB microSD (Raspberry Pi OS)  -> Pi microSD slot                -        Required
+          Storage | Bookworm or newer
+
+  >> LoRa Ra-02
+  [ ]  M03  Pi pin 1 (3.3 V)                 -> Ra-02 VCC                      Orange   Required
+          3.3 V | NEVER pin 2 or 4 (5 V)
+  [ ]  M04  Pi pin 6 (GND)                   -> Ra-02 GND                      Black    Required
+          GND
+  [ ]  M05  Pi pin 23 (GPIO11 SCLK)          -> Ra-02 SCK                      Yellow   Required
+          SPI SCK | config.toml spi_bus=0
+  [ ]  M06  Pi pin 21 (GPIO9 MISO)           -> Ra-02 MISO                     Green    Required
+          SPI MISO | config.toml spi_bus=0
+  [ ]  M07  Pi pin 19 (GPIO10 MOSI)          -> Ra-02 MOSI                     Purple   Required
+          SPI MOSI | config.toml spi_bus=0
+  [ ]  M08  Pi pin 24 (GPIO8 CE0)            -> Ra-02 NSS                      White    Required
+          SPI chip select | config.toml spi_device=0
+  [ ]  M09  Pi pin 22 (GPIO25)               -> Ra-02 RESET                    Brown    Required
+          Reset | config.toml reset_pin=25
+  [ ]  M10  Pi pin 18 (GPIO24)               -> Ra-02 DIO0                     Gray     Required
+          RX-done interrupt | config.toml dio0_pin=24
+  [ ]  M11  100 nF ceramic capacitor         -> Ra-02 VCC <-> GND              -        Required
+          Decoupling | As close to the module as possible
+  [ ]  M12  10 uF capacitor                  -> Ra-02 VCC (+) <-> GND (-)      -        Required
+          Decoupling | Observe polarity
+  [ ]  M13  433 MHz antenna (IPEX cable)     -> Ra-02 antenna socket           -        Required
+          RF | Fit BEFORE power-on
+  [ ]  M14  Ra-02 DIO1..DIO5                 -> -                              -        Not connected
+          Leave open
+
+  >> Network
+  [ ]  M15  Pi Ethernet port (or built-in Wi-Fi) -> Router / switch -> laptop      -        Required
+          LAN | config.toml [web] port=5000 | Dashboard http://<pi-ip>:5000
+
+
+2. FIELD NODE - ESP32 (build twice)   [N1] [N2]
+-----------------------------------------------
+
+  >> Power
+  [ ] [ ]  N-01  5 V adapter (+)                  -> 5 V rail (perfboard)           Red      Required
+              5 V | >= 1 A (MQ-135 heater ~150 mA)
+  [ ] [ ]  N-02  5 V adapter (-)                  -> GND rail (perfboard)           Black    Required
+              GND
+  [ ] [ ]  N-03  5 V rail                         -> ESP32 VIN                      Red      Required
+              5 V
+  [ ] [ ]  N-04  ESP32 GND                        -> GND rail                       Black    Required
+              GND | All GNDs of this node common
+  [ ] [ ]  N-05  ESP32 3V3                        -> 3.3 V rail                     Orange   Required
+              3.3 V | Feeds Ra-02, BME280, BH1750, sound
+
+  >> LoRa Ra-02
+  [ ] [ ]  N-06  3.3 V rail                       -> Ra-02 VCC                      Orange   Required
+              3.3 V | 3.3 V ONLY
+  [ ] [ ]  N-07  GND rail                         -> Ra-02 GND                      Black    Required
+              GND
+  [ ] [ ]  N-08  ESP32 GPIO18                     -> Ra-02 SCK                      Yellow   Required
+              SPI SCK | board_config.h PIN_LORA_SCK
+  [ ] [ ]  N-09  ESP32 GPIO19                     -> Ra-02 MISO                     Green    Required
+              SPI MISO | board_config.h PIN_LORA_MISO
+  [ ] [ ]  N-10  ESP32 GPIO23                     -> Ra-02 MOSI                     Purple   Required
+              SPI MOSI | board_config.h PIN_LORA_MOSI
+  [ ] [ ]  N-11  ESP32 GPIO5                      -> Ra-02 NSS                      White    Required
+              SPI chip select | board_config.h PIN_LORA_NSS
+  [ ] [ ]  N-12  ESP32 GPIO14                     -> Ra-02 RESET                    Brown    Required
+              Reset | board_config.h PIN_LORA_RESET
+  [ ] [ ]  N-13  ESP32 GPIO26                     -> Ra-02 DIO0                     Gray     Required
+              TX-done interrupt | board_config.h PIN_LORA_DIO0
+  [ ] [ ]  N-14  100 nF ceramic capacitor         -> Ra-02 VCC <-> GND              -        Required
+              Decoupling | Close to the module
+  [ ] [ ]  N-15  10 uF capacitor                  -> Ra-02 VCC (+) <-> GND (-)      -        Required
+              Decoupling | Observe polarity
+  [ ] [ ]  N-16  433 MHz antenna (IPEX cable)     -> Ra-02 antenna socket           -        Required
+              RF | Fit BEFORE power-on
+  [ ] [ ]  N-17  Ra-02 DIO1..DIO5                 -> -                              -        Not connected
+              Leave open
+
+  >> BME280 (I2C 0x76)
+  [ ] [ ]  N-18  3.3 V rail                       -> BME280 VCC                     Orange   Required
+              3.3 V
+  [ ] [ ]  N-19  GND rail                         -> BME280 GND                     Black    Required
+              GND
+  [ ] [ ]  N-20  ESP32 GPIO21                     -> BME280 SDA                     Blue     Required
+              I2C SDA | board_config.h PIN_I2C_SDA | Shared with BH1750
+  [ ] [ ]  N-21  ESP32 GPIO22                     -> BME280 SCL                     Cyan     Required
+              I2C SCL | board_config.h PIN_I2C_SCL | Shared with BH1750
+  [ ] [ ]  N-22  BME280 CSB                       -> 3.3 V rail                     Orange   If pin exists
+              I2C mode select
+  [ ] [ ]  N-23  BME280 SDO                       -> GND rail                       Black    If pin exists
+              Address 0x76 | board_config.h BME280_I2C_ADDR=0x76 | SDO->3.3 V gives 0x77 (change setting)
+
+  >> BH1750 (I2C 0x23)
+  [ ] [ ]  N-24  3.3 V rail                       -> BH1750 VCC                     Orange   Required
+              3.3 V
+  [ ] [ ]  N-25  GND rail                         -> BH1750 GND                     Black    Required
+              GND
+  [ ] [ ]  N-26  ESP32 GPIO21                     -> BH1750 SDA                     Blue     Required
+              I2C SDA | board_config.h PIN_I2C_SDA | Same bus as BME280
+  [ ] [ ]  N-27  ESP32 GPIO22                     -> BH1750 SCL                     Cyan     Required
+              I2C SCL | board_config.h PIN_I2C_SCL | Same bus as BME280
+  [ ] [ ]  N-28  BH1750 ADDR                      -> GND rail                       Black    Required
+              Address 0x23 | board_config.h BH1750_I2C_ADDR=0x23
+
+  >> MQ-135 -> GPIO34
+  [ ] [ ]  N-29  5 V rail                         -> MQ-135 VCC                     Red      Required
+              5 V heater
+  [ ] [ ]  N-30  GND rail                         -> MQ-135 GND                     Black    Required
+              GND
+  [ ] [ ]  N-31  MQ-135 AO                        -> R1 10 kOhm (end 1)             Magenta  Required
+              Analog
+  [ ] [ ]  N-32  R1 10 kOhm (end 2)               -> Divider junction               -        Required
+              Analog
+  [ ] [ ]  N-33  Divider junction                 -> R2 20 kOhm -> GND rail         Black    Required
+              Divider | Junction = AO x 0.667 (max 3.33 V)
+  [ ] [ ]  N-34  Divider junction                 -> 1 kOhm -> ESP32 GPIO34         Magenta  Required
+              Analog | board_config.h PIN_MQ135 | MEASURE junction <= 3.3 V first
+  [ ] [ ]  N-35  Divider junction                 -> 100 nF -> GND rail             Black    Recommended
+              Noise filter
+  [ ] [ ]  N-36  MQ-135 DO                        -> -                              -        Not connected
+
+  >> Sound -> GPIO35
+  [ ] [ ]  N-37  3.3 V rail                       -> Sound VCC                      Orange   Required
+              3.3 V | 5 V module: add 10k/20k divider on AO
+  [ ] [ ]  N-38  GND rail                         -> Sound GND                      Black    Required
+              GND
+  [ ] [ ]  N-39  Sound AO                         -> ESP32 GPIO35                   Magenta  Required
+              Analog | board_config.h PIN_SOUND | AO must stay <= 3.3 V
+  [ ] [ ]  N-40  Sound DO                         -> -                              -        Not connected
+
+  >> Supply monitor -> GPIO32
+  [ ] [ ]  N-41  5 V rail                         -> 100 kOhm -> sense junction     Red      Optional
+              5 V sense | board_config.h SUPPLY_MONITOR_ENABLED | Disable setting if not fitted
+  [ ] [ ]  N-42  Sense junction                   -> 100 kOhm -> GND rail           Black    Optional
+              Divider
+  [ ] [ ]  N-43  Sense junction                   -> ESP32 GPIO32                   Magenta  Optional
+              Analog (~2.5 V) | board_config.h PIN_SUPPLY
+
+
+3. WHAT YOU NEED (counted from the lists above)
+-----------------------------------------------
+  Jumper wires by colour      Main node   Per field node   TOTAL (1 main + 2 nodes)
+    Red                            0              4                   8
+    Orange                         1              6                  13
+    Black                          1             12                  25
+    Blue                           0              2                   4
+    Cyan                           0              2                   4
+    Yellow                         1              1                   3
+    Green                          1              1                   3
+    Purple                         1              1                   3
+    White                          1              1                   3
+    Brown                          1              1                   3
+    Gray                           1              1                   3
+    Magenta                        0              4                   8
+    TOTAL                          8             36                  80
+
+  Passive parts                Main node   Per field node   TOTAL
+    100 nF ceramic capacitor       1            2              5   (Ra-02 + MQ-135 filter)
+    10 uF capacitor                1            1              3
+    10 kOhm resistor               -            1              2   (MQ-135 R1)
+    20 kOhm resistor               -            1              2   (MQ-135 R2)
+    1 kOhm resistor                -            1              2   (series to GPIO34)
+    100 kOhm resistor              -            2              4   (supply monitor, optional)
+
+  Modules / other               Main node   Per field node   TOTAL
+    SX1278 / Ra-02 + adapter PCB    1            1              3
+    433 MHz antenna + IPEX cable    1            1              3
+    Raspberry Pi 3B+ + 32 GB SD     1            -              1
+    5 V 2.5 A micro-USB adapter     1            -              1
+    ESP32 DevKit V1                 -            1              2
+    BME280, BH1750, MQ-135, sound   -          1 each         2 each
+    5 V >= 1 A adapter              -            1              2
+    Perfboard / PCB + headers       -            1              2
+    Ethernet cable (or Wi-Fi)       1            -              1
+
+  Add spares: 20 % extra jumper wires, 1 spare Ra-02, 1 spare sensor of each type.
+
+
+4. GOLDEN RULES
+---------------
+  1. Ra-02 VCC = 3.3 V only (Pi pin 1 / ESP32 3V3). Never 5 V.
+  2. ESP32 inputs <= 3.3 V. Measure the MQ-135 junction before GPIO34.
+  3. Antenna on every Ra-02 BEFORE power-on.
+  4. One common GND inside each unit. The units are NOT wired together.
+  5. Same radio settings on all three modules (433 MHz, SF7, BW125, CR4/5, sync 0x12, CRC on).
+
+END OF FILE

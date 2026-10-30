@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Campus Monitor{% endblock %} · LoRa Campus Monitor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-refresh="{{ refresh_s }}">
+  <header class="topbar">
+    <div class="brand">LoRa Campus Monitor</div>
+    <nav>
+      <a href="{{ url_for('overview') }}" class="{{ 'active' if request.endpoint == 'overview' }}">Overview</a>
+      {% for n in nav_nodes %}
+      <a href="{{ url_for('node_page', node_id=n.node_id) }}"
+         class="{{ 'active' if request.view_args and request.view_args.get('node_id') == n.node_id }}">{{ n.name }}</a>
+      {% endfor %}
+      <a href="{{ url_for('alerts_page') }}" class="{{ 'active' if request.endpoint == 'alerts_page' }}">Alerts</a>
+      <a href="{{ url_for('maintenance') }}" class="{{ 'active' if request.endpoint == 'maintenance' }}">Maintenance</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    v{{ app_version }} · Educational prototype — MQ-135 and sound values are indicative, not certified measurements.
+  </footer>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

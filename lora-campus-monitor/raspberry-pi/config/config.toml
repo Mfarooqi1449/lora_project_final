@@ -1,0 +1,114 @@
+# LoRa campus monitor - main-node configuration.
+# Relative paths are resolved against the raspberry-pi/ directory.
+# Override the config file location with LORA_MONITOR_CONFIG=/path/to/config.toml
+
+[radio]
+# Must match esp32-node/include/board_config.h on BOTH field nodes.
+frequency_hz = 433000000
+bandwidth_hz = 125000
+spreading_factor = 7
+coding_rate_denominator = 5
+preamble_length = 8
+sync_word = 0x12
+crc = true
+# Raspberry Pi wiring (BCM numbering): SPI0 CE0 = GPIO8 (pin 24)
+spi_bus = 0
+spi_device = 0
+spi_speed_hz = 5000000
+reset_pin = 25   # physical pin 22
+dio0_pin = 24    # physical pin 18
+
+[database]
+path = "database/monitor.db"
+backup_dir = "database/backups"
+backup_keep = 14
+# Delete readings older than this many days (0 = keep forever).
+retention_days = 0
+
+[receiver]
+# A node is offline when no packet arrives within this time.
+offline_timeout_s = 180
+health_interval_s = 60
+log_file = "logs/receiver.log"
+log_level = "INFO"
+
+[web]
+host = "0.0.0.0"
+port = 5000
+refresh_interval_s = 15
+log_file = "logs/dashboard.log"
+
+[[nodes]]
+node_id = 1
+name = "Node 1"
+location = "Location 1 (set the real place)"
+enabled = true
+
+[[nodes]]
+node_id = 2
+name = "Node 2"
+location = "Location 2 (set the real place)"
+enabled = true
+
+[alerts]
+# Number of consecutive violating packets before an alert opens, and
+# consecutive normal packets before it clears (packets arrive once per minute).
+consecutive_samples = 3
+# Initial thresholds. Tune them from real field measurements.
+# "clear" adds hysteresis: a high alert clears only below "clear",
+# a low alert clears only above "clear".
+
+[[alerts.rules]]
+type = "high_temperature"
+metric = "temperature_c"
+direction = "high"
+threshold = 40.0
+clear = 38.0
+severity = "warning"
+enabled = true
+
+[[alerts.rules]]
+type = "high_humidity"
+metric = "humidity_percent"
+direction = "high"
+threshold = 85.0
+clear = 80.0
+severity = "warning"
+enabled = true
+
+[[alerts.rules]]
+type = "low_light"
+metric = "light_lux"
+direction = "low"
+threshold = 10.0
+clear = 20.0
+severity = "info"
+# Outdoor nodes are dark every night; disable for outdoor locations.
+enabled = true
+
+[[alerts.rules]]
+type = "high_air_quality_raw"
+metric = "air_quality_raw"
+direction = "high"
+threshold = 2500
+clear = 2300
+severity = "warning"
+enabled = true
+
+[[alerts.rules]]
+type = "high_sound"
+metric = "sound_raw"
+direction = "high"
+threshold = 600
+clear = 500
+severity = "info"
+enabled = true
+
+[[alerts.rules]]
+type = "low_supply_voltage"
+metric = "supply_voltage"
+direction = "low"
+threshold = 4.6
+clear = 4.75
+severity = "critical"
+enabled = true

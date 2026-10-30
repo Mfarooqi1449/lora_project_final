@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<h1>System overview</h1>
+<section class="grid status-grid">
+  <div class="card">
+    <div class="label">Main node receiver</div>
+    <div class="value" id="rx-state">…</div>
+    <div class="sub" id="rx-detail"></div>
+  </div>
+  <div class="card">
+    <div class="label">LoRa radio</div>
+    <div class="value" id="radio-state">…</div>
+    <div class="sub" id="radio-detail"></div>
+  </div>
+  <div class="card">
+    <div class="label">Database</div>
+    <div class="value" id="db-state">…</div>
+    <div class="sub" id="db-detail"></div>
+  </div>
+  <div class="card">
+    <div class="label">Active alerts</div>
+    <div class="value"><a id="alert-count" href="{{ url_for('alerts_page') }}">…</a></div>
+    <div class="sub">open alerts across all nodes</div>
+  </div>
+</section>
+
+<h2>Field nodes</h2>
+<section class="grid node-grid" id="nodes"></section>
+<p class="muted small">Updated <span id="updated">—</span> · refreshes every {{ refresh_s }} s</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function refreshOverview() {
+  let data;
+  try {
+    data = await fetchJSON('/api/overview');
+  } catch (e) {
+    setText('rx-state', 'Dashboard offline'); return;
+  }
+  const rx = data.receiver;
+  setState('rx-state', rx.running, 'Running', 'Stopped');
+  setText('rx-detail', rx.running ? `heartbeat ${fmtAge(rx.heartbeat_age_s)} ago · v${rx.version || '?'}` : 'no recent heartbeat from receiver service');
+  setState('radio-state', rx.radio_ok, 'OK', 'Not ready');
+  setText('radio-detail', rx.radio_settings || '');
+  setState('db-state', data.database.ok, 'OK', 'Error');
+  setText('db-detail', data.database.size_mb != null ? `${data.database.size_mb} MB` : '');
+  const ac = document.getElementById('alert-count');
+  ac.textContent = data.active_alerts;
+  ac.className = data.active_alerts ? 'bad' : 'good';
+
+  const container = document.getElementById('nodes');
+  container.innerHTML = '';
+  for (const n of data.nodes) container.appendChild(nodeCard(n));
+  setText('updated', new Date().toLocaleTimeString());
+}
+
+function nodeCard(n) {
+  const r = n.latest || {};
+  const el = document.createElement('a');
+  el.className = 'card node-card';
+  el.href = `/node/${n.node_id}`;
+  const state = !n.enabled ? '<span class="pill muted-pill">disabled</span>'
+    : n.online ? '<span class="pill ok">online</span>' : '<span class="pill bad-pill">offline</span>';
+  el.innerHTML = `
+    <div class="node-head"><div><strong>${esc(n.node_name)}</strong><div class="sub">${esc(n.location)}</div></div>${state}</div>
+    <div class="metrics">
+      ${metric('Temperature', r.temperature_c, '°C', 1)}
+      ${metric('Humidity', r.humidity_percent, '%', 1)}
+      ${metric('Pressure', r.pressure_hpa, 'hPa', 1)}
+      ${metric('Light', r.light_lux, 'lx', 0)}
+      ${metric('MQ-135', r.air_quality_raw, '', 0)}
+      ${metric('Sound', r.sound_raw, '', 0)}
+    </div>
+    <div class="sub">Last packet: ${n.last_seen ? fmtTime(n.last_seen) + ' (' + fmtAge(n.last_seen_age_s) + ' ago)' : 'never'}</div>
+    <div class="sub">RSSI ${fmt(n.last_rssi_dbm, 1)} dBm · SNR ${fmt(n.last_snr_db, 1)} dB ·
+      loss ${n.packet_loss_percent == null ? '—' : n.packet_loss_percent + ' %'} ·
+      alerts ${n.active_alerts}</div>`;
+  return el;
+}
+
+refreshOverview();
+setInterval(refreshOverview, refreshMs());
+</script>
+{% endblock %}

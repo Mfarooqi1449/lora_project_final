@@ -1,0 +1,210 @@
+==============================================================================
+LoRa CAMPUS MONITOR - HARDWARE LIST (BILL OF MATERIALS)
+==============================================================================
+
+Complete system = 1 x MAIN NODE (Raspberry Pi) + 2 x FIELD NODE (ESP32).
+
+Columns:
+  MAIN  = quantity for the main node
+  NODE  = quantity for ONE field node (built twice)
+  SPARE = recommended spares
+  BUY   = TOTAL to buy = MAIN + 2 x NODE + SPARE
+  Need  = Required / Recommended / Optional / Future
+  Second line = specification / buying note -> what it is used for
+
+Same list for Excel / Google Sheets (with empty price columns):
+  hardware_list.csv
+Connection IDs (M.., N-..) refer to 04_master_connection_list.txt.
+
+
+A. Main node
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] Raspberry Pi 3 Model B+                         1     0      0     1  Required
+        BCM2837B0, 1 GB RAM, Wi-Fi + Ethernet, 40-pin header
+        -> Receiver, SQLite, dashboard
+  [ ] microSD card 32 GB                              1     0      1     2  Required
+        Class 10 / U1 / A1, good brand (SanDisk, Samsung)
+        -> Raspberry Pi OS + database
+  [ ] Pi power supply 5 V / 2.5 A                     1     0      0     1  Required
+        Micro-USB, official or equivalent (not a phone charger)
+        -> M01
+  [ ] Pi case, ventilated                             1     0      0     1  Required
+        For Pi 3B+, with GPIO access slot
+        -> Protection, cooling
+  [ ] Heatsink set                                    1     0      0     1  Required
+        Aluminium, for SoC + USB/LAN chip
+        -> Cooling (24/7 operation)
+  [ ] Ethernet cable Cat5e/Cat6                       1     0      0     1  Recommended
+        1-3 m (or use built-in Wi-Fi)
+        -> M15 dashboard network
+  [ ] microSD card reader                             1     0      0     1  Required
+        USB, for writing the OS from a PC
+        -> Phase 2 setup
+
+B. LoRa radio
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] SX1278 LoRa module - Ai-Thinker Ra-02           1     1      1     4  Required
+        433 MHz version (check the label: Ra-02 = 410-525 MHz), SPI, 3.3 V
+        -> M03-M14 / N-06..N-17
+  [ ] Ra-02 adapter / breakout PCB                    1     1      1     4  Required
+        Converts SMD half-holes to 2.54 mm pins (or a custom PCB)
+        -> Mounting the Ra-02
+  [ ] 433 MHz antenna                                 1     1      0     3  Required
+        Matching 433 MHz (NOT 868/915 MHz), 2-3 dBi, SMA
+        -> M13 / N-16
+  [ ] IPEX (U.FL) to SMA pigtail cable                1     1      1     4  Required
+        U.FL/IPEX-1 to SMA female, 10-15 cm
+        -> Antenna connection
+
+C. Field node
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] ESP32 DevKit V1 (30-pin)                        0     1      1     3  Required
+        ESP32-WROOM-32, CP2102 or CH340 USB-serial
+        -> Node controller
+  [ ] BME280 sensor module                            0     1      1     3  Required
+        I2C, 3.3 V; must say BME280 (BMP280 has no humidity)
+        -> N-18..N-23 temp/RH/pressure
+  [ ] BH1750 light sensor module (GY-302)             0     1      1     3  Required
+        I2C, 3.3-5 V, address 0x23
+        -> N-24..N-28 light
+  [ ] MQ-135 gas sensor module                        0     1      1     3  Required
+        5 V heater, analog AO output
+        -> N-29..N-36 air quality
+  [ ] Analog sound sensor module                      0     1      1     3  Required
+        3.3 V compatible with analog AO (e.g. MAX4466 / MAX9814 / KY-037 type)
+        -> N-37..N-40 sound
+  [ ] 5 V regulated adapter                           0     1      0     2  Required
+        5 V, >= 1 A (2 A recommended), barrel jack or USB
+        -> N-01, N-02
+  [ ] DC barrel jack (panel/PCB) or USB breakout      0     1      0     2  Required
+        Matches the adapter plug (e.g. 5.5 x 2.1 mm)
+        -> Power input to rails
+  [ ] Micro-USB data cable                            0     1      0     2  Required
+        DATA cable (not charge-only) for flashing
+        -> Firmware upload
+
+D. Passive parts
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] Ceramic capacitor 100 nF (104)                  1     2      5    10  Required
+        50 V, through-hole
+        -> Ra-02 decoupling + MQ-135 filter
+  [ ] Electrolytic capacitor 10 uF                    1     1      3     6  Required
+        16 V or higher, through-hole
+        -> Ra-02 decoupling
+  [ ] Resistor 10 kOhm 1/4 W                          0     1      5     7  Required
+        1 % metal film (brown-black-orange)
+        -> MQ-135 divider R1
+  [ ] Resistor 20 kOhm 1/4 W                          0     1      5     7  Required
+        1 % metal film (red-black-orange)
+        -> MQ-135 divider R2
+  [ ] Resistor 1 kOhm 1/4 W                           0     1      5     7  Required
+        1 % metal film (brown-black-red)
+        -> Series to GPIO34
+  [ ] Resistor 100 kOhm 1/4 W                         0     2      4     8  Optional
+        1 % metal film (brown-black-yellow)
+        -> Supply monitor divider (GPIO32)
+
+E. Wiring & build
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] Jumper wires female-female                     10     0     10    20  Required
+        20 cm, mixed colours (red, orange, black, blue, cyan, yellow, green, purple, white, brown, gray, magenta)
+        -> Pi -> Ra-02 (8 + spares)
+  [ ] Hook-up wire 22-24 AWG solid                    0     1      0     2  Required
+        Rolls/kit in the 12 colour-guide colours
+        -> Perfboard wiring (36 links per node)
+  [ ] Perfboard / stripboard                          0     1      1     3  Required
+        About 9 x 15 cm, FR4 (or custom PCB)
+        -> Node circuit + power rails
+  [ ] Female pin headers 2.54 mm                      1     4      2    11  Required
+        40-pin strips, cut to size
+        -> Removable ESP32 / modules
+  [ ] Male pin headers 2.54 mm                        1     2      2     7  Required
+        40-pin strips
+        -> Module connections
+  [ ] Breadboard 830 points + jumper kit              0     1      0     2  Recommended
+        For bench testing before soldering
+        -> Phase 3-6 testing
+  [ ] Enclosure, ventilated (IP54-style)              0     1      0     2  Required
+        ABS box with vents; sensors must see outside air
+        -> Node protection
+  [ ] Cable glands (PG7)                              0     2      2     6  Recommended
+        For power cable and antenna exit
+        -> Strain relief
+  [ ] M3 nylon spacers + screws                       1     1      0     3  Required
+        Set (10-15 mm)
+        -> Mounting boards
+  [ ] Heat-shrink tubing + labels                     1     1      0     3  Required
+        Assorted; label MAIN NODE / NODE 1 / NODE 2
+        -> Insulation, labelling
+
+F. Tools & test
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] Digital multimeter                              1     0      0     1  Required
+        DC voltage + continuity beeper
+        -> Power-on checklists
+  [ ] Soldering iron 25-60 W + solder + flux          1     0      0     1  Required
+        Temperature controlled preferred, 0.8 mm solder
+        -> Perfboard assembly
+  [ ] Wire stripper / cutter                          1     0      0     1  Required
+        For 22-26 AWG
+        -> Wiring
+  [ ] Bench power supply with current limit           1     0      0     1  Recommended
+        0-30 V / 0-3 A
+        -> Safe first power-up
+  [ ] PC / laptop                                     1     0      0     1  Required
+        Windows/Linux/macOS, Python 3.11+, PlatformIO, browser
+        -> Flashing, setup, dashboard
+  [ ] Wi-Fi router / network switch                   1     0      0     1  Required
+        Local network for the dashboard
+        -> Dashboard access
+
+G. Optional / future
+------------------------------------------------------------------------------
+  [ ] ITEM                                         MAIN  NODE  SPARE   BUY  NEED
+  [ ] USB flash drive 16 GB+                          1     0      0     1  Optional
+        For database backups
+        -> backup_db.py --dest
+  [ ] PM2.5 sensor (e.g. PMS5003)                     0     0      0     0  Future
+        Future expansion (File 1, section 12)
+        -> Not wired in this version
+  [ ] Solar panel + charger + Li-ion                  0     0      0     0  Future
+        Future solar-powered node
+        -> Not wired in this version
+
+
+SUMMARY - MAIN MODULES TO BUY
+------------------------------------------------------------------------------
+  Raspberry Pi 3B+ ................ 1     ESP32 DevKit V1 ........... 2 (+1 spare)
+  SX1278 Ra-02 433 MHz ............ 3 (+1 spare)   433 MHz antennas ... 3
+  BME280 ......................... 2 (+1)   BH1750 .................... 2 (+1)
+  MQ-135 ......................... 2 (+1)   Sound sensor .............. 2 (+1)
+  5 V 2.5 A Pi supply ............ 1       5 V >= 1 A node adapters .. 2
+  32 GB microSD .................. 1 (+1)
+
+  Line items in this list: 44  (Required: 36)
+
+BUYING CHECKS (avoid the common mistakes)
+------------------------------------------------------------------------------
+  [ ] LoRa modules, antennas and pigtails are ALL 433 MHz (Ra-02), not 868/915.
+  [ ] Sensor module says BME280 (humidity), not BMP280.
+  [ ] Sound module gives an ANALOG output (AO) and works on 3.3 V.
+  [ ] ESP32 board is the 30-pin DevKit V1 (pin map in 02_field_node_1_esp32.txt).
+  [ ] Ra-02 adapter PCB matches the Ra-02 footprint (16 half-holes).
+  [ ] USB cable is a DATA cable.
+  [ ] Node adapters are regulated 5 V (measure: 4.75-5.25 V).
+  [ ] 433 MHz use complies with local rules (India: 433-434.79 MHz, low power).
+
+NOTES
+------------------------------------------------------------------------------
+  - Fill in prices in hardware_list.csv. Prices vary by supplier and date.
+  - MQ-135 needs a 24-48 h burn-in before stable readings.
+  - Wire colours follow the colour guide (red 5 V, orange 3.3 V, black GND, ...).
+  - Educational prototype: MQ-135 and the sound sensor are not certified instruments.
+
+END OF FILE
